@@ -287,10 +287,7 @@ namespace INF1771
             if (gameStatus == "Game")
             {
                 client.sendRequestPosition();
-                client.sendRequestUserStatus();
-                client.sendRequestObservation();
                 ProcuraArtigos();
-
             }
             else if (msgSeconds >= 5000)
             {
@@ -326,9 +323,7 @@ namespace INF1771
             {
                 if ((mapa[posicao.x, posicao.y].GetTipoEspaco().Equals(Espaco.Desconhecido)))
                 {
-                    AndaParaFrente();
-                    client.sendRequestUserStatus();
-                    client.sendRequestObservation();
+                    AndaParaFrenteEObservar();
                     if (estadoAtual.Equals(Estado.Bloqueado))
                     {
                         mapa[posicao.x, posicao.y].espaco = Espaco.Parede;
@@ -341,9 +336,6 @@ namespace INF1771
                                 {
                                     MudaDirecao(posicao.x - posicaoProx.x, posicao.y - posicaoProx.y);
                                     AndaParaFrente();
-                                    client.sendRequestUserStatus();
-                                    client.sendRequestObservation();
-                                    MudaEstado(Estado.Desconhecido);
                                     break;
                                 }
                             }
@@ -354,12 +346,14 @@ namespace INF1771
                         mapa[posicao.x, posicao.y].espaco = Espaco.PowerUp;
                         Console.WriteLine("Tentou pegar item");
                         client.sendGetItem();
+                        MudaEstado(Estado.Desconhecido);
                     }
                     else if (estadoAtual.Equals(Estado.RedLight))
                     {
                         mapa[posicao.x, posicao.y].espaco = Espaco.PowerUp;
                         Console.WriteLine("Tentou pegar item");
                         client.sendGetItem();
+                        MudaEstado(Estado.Desconhecido);
                     }
                     else if (estadoAtual.Equals(Estado.Passos))
                     {
@@ -372,11 +366,42 @@ namespace INF1771
                 }
                 else if (mapa[posicao.x, posicao.y].GetTipoEspaco().Equals(Espaco.Poco))
                 {
+                    Console.WriteLine("Poco");
                     DesviaPoco();
                 }
                 else
                 {
-                    AndaParaFrente();
+                    if (mapa[posicao.x, posicao.y].GetTipoEspaco().Equals(Espaco.PowerUp))
+                    {
+                        Console.WriteLine("Tentou pegar item");
+                        client.sendGetItem();
+                    }
+                    else if (mapa[posicao.x, posicao.y].GetTipoEspaco().Equals(Espaco.Nada))
+                    {
+                        AndaParaFrente();
+                    }
+                    else if (mapa[posicao.x, posicao.y].GetTipoEspaco().Equals(Espaco.Parede))
+                    {
+                        var posicoes = gameAi.GetAllAdjacentPositions();
+                        foreach (var posicaoProx in posicoes)
+                        {
+                            if (gameAi.EsseTileExiste(posicaoProx.x, posicaoProx.y))
+                            {
+                                if (!mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Poco) || !mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Parede))
+                                {
+                                    MudaDirecao(posicao.x - posicaoProx.x, posicao.y - posicaoProx.y);
+                                    AndaParaFrente();
+                                    if (mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Desconhecido))
+                                    {
+                                        client.sendRequestUserStatus();
+                                        client.sendRequestObservation();
+                                    }
+                                    MudaEstado(Estado.Desconhecido);
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
             }
             else
@@ -450,7 +475,16 @@ namespace INF1771
                         }
                     }
                 }
-                ProcuraArtigos();
+                client.sendShoot();
+                client.sendRequestObservation();
+                if (estadoAtual.Equals(Estado.Hit))
+                {
+                    ContinuaAtirar();
+                }
+                else
+                {
+                    ProcuraArtigos();
+                }
             }
         }
         public void ContinuaAtirar()
@@ -578,6 +612,15 @@ namespace INF1771
             var nextPos = gameAi.NextPosition();
             gameAi.SetPlayerPosition(nextPos.x,nextPos.y);
             client.sendForward();
+//            Console.WriteLine("Andou");
+        }
+        private void AndaParaFrenteEObservar()
+        {
+            var nextPos = gameAi.NextPosition();
+            gameAi.SetPlayerPosition(nextPos.x,nextPos.y);
+            client.sendForward();
+            client.sendRequestUserStatus();
+            client.sendRequestObservation();
 //            Console.WriteLine("Andou");
         }
     }
