@@ -1,4 +1,5 @@
-﻿using INF1771_GameClient.dto;
+﻿using INF1771_GameAI.Map;
+using INF1771_GameClient.dto;
 using INF1771_GameClient.Socket;
 using System.Drawing;
 using System.Timers;
@@ -282,10 +283,10 @@ namespace INF1771
         private void IfStarted(object sender, EventArgs e)
         {
             msgSeconds += timer1.Interval;
-
             client.sendRequestGameStatus();
             if (gameStatus == "Game")
             {
+                Console.WriteLine("Started");
                 client.sendRequestPosition();
                 ProcuraArtigos();
             }
@@ -363,10 +364,13 @@ namespace INF1771
                     {
                         LutaComInimigos();
                     }
+                    else if (estadoAtual.Equals(Estado.Brisa))
+                    {
+
+                    }
                 }
                 else if (mapa[posicao.x, posicao.y].GetTipoEspaco().Equals(Espaco.Poco))
                 {
-                    Console.WriteLine("Poco");
                     DesviaPoco();
                 }
                 else
@@ -489,7 +493,7 @@ namespace INF1771
         }
         public void ContinuaAtirar()
         {
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 4; i++)
             {
                 client.sendShoot();
             }
@@ -591,17 +595,54 @@ namespace INF1771
         }
         private void DesviaPoco()
         {
+            var posAtual = gameAi.GetPlayerPosition();
             var posicoesPossiveis = gameAi.GetAllAdjacentPositions();
+            List<Position> posicoesPosiveis2 = new List<Position>();
             foreach (var posicao in posicoesPossiveis)
             {
                 if (gameAi.EsseTileExiste(posicao.x, posicao.y))
                 {
                     if (mapa[posicao.x, posicao.y].espaco.Equals(Espaco.Desconhecido))
                     {
-
+                        posicoesPosiveis2.Add(posicao);
+                    }
+                    else if (mapa[posicao.x, posicao.y].espaco.Equals(Espaco.Nada) || mapa[posicao.x, posicao.y].espaco.Equals(Espaco.PowerUp))
+                    {
+                        if (posicao.x != posAtual.x)
+                        {
+                            if (posicao.x > posAtual.x)
+                            {
+                                MudaDirecao(1, 0);
+                            }
+                            else
+                            {
+                                MudaDirecao(-1, 0);
+                            }
+                        }
+                        if (posicao.y != posAtual.y)
+                        {
+                            if (posicao.y > posAtual.y)
+                            {
+                                MudaDirecao(0, 1);
+                            }
+                            else
+                            {
+                                MudaDirecao(0, -1);
+                            }
+                        }
+                        AndaParaFrenteEObservar();
+                    }
+                    else if (mapa[posicao.x, posicao.y].espaco.Equals(Espaco.RiscoDePoco))
+                    {
+                        mapa[posicao.x, posicao.y].espaco = Espaco.Poco;
                     }
                 }
             }
+            foreach (var posicao in posicoesPosiveis2)
+            {
+                mapa[posicao.x, posicao.y].espaco = Espaco.RiscoDePoco;
+            }
+            ProcuraArtigos();
         }
         private void MudaEstado(Estado estado)
         {

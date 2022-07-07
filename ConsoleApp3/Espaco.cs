@@ -11,6 +11,7 @@ namespace INF1771
         public string Name { get; set; }
         public static Espaco PowerUp = new Espaco("PowerUp");
         public static Espaco Poco = new Espaco("Poco");
+        public static Espaco RiscoDePoco = new Espaco("RiscoDePoco");
         public static Espaco Parede = new Espaco("Parede");
         public static Espaco Desconhecido = new Espaco("Desconhecido");
         public static Espaco Nada = new Espaco("Nada");
