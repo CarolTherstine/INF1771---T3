@@ -284,6 +284,7 @@ namespace INF1771
         {
             msgSeconds += timer1.Interval;
             client.sendRequestGameStatus();
+            client.sendName("Testinho");
             if (gameStatus == "Game")
             {
                 Console.WriteLine("Started");
@@ -350,6 +351,13 @@ namespace INF1771
                         MudaEstado(Estado.Desconhecido);
                     }
                     else if (estadoAtual.Equals(Estado.RedLight))
+                    {
+                        mapa[posicao.x, posicao.y].espaco = Espaco.PowerUp;
+                        Console.WriteLine("Tentou pegar item");
+                        client.sendGetItem();
+                        MudaEstado(Estado.Desconhecido);
+                    }
+                    else if (estadoAtual.Equals(Estado.WeakLight))
                     {
                         mapa[posicao.x, posicao.y].espaco = Espaco.PowerUp;
                         Console.WriteLine("Tentou pegar item");
