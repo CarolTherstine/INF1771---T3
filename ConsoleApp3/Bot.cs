@@ -39,6 +39,7 @@ namespace INF1771
             HandleClient.ChangeStatusEvent += SocketStatusChange;
             estadoAtual = Estado.Desconhecido;
             client.connect(host);
+            client.sendName("Testinho");
             timer1.Start();
         }
         public void InicializaMapa()
@@ -255,6 +256,7 @@ namespace INF1771
                                     gameAi.GetObservations(o);
                                     msg.Add(cmdArgs.cmd[1] + " hit you");
                                     Console.WriteLine($"{cmdArgs.cmd[1]} hit you");
+                                    LutaComInimigos();
                                 }
                                 break;
                         }
@@ -271,9 +273,6 @@ namespace INF1771
                 Console.WriteLine("Connected");
                 client.sendName(name);
                 client.sendRequestGameStatus();
-                client.sendRequestUserStatus();
-                client.sendRequestObservation();
-
             }
             else
                 Console.WriteLine("Disconnected");
@@ -284,12 +283,11 @@ namespace INF1771
         {
             msgSeconds += timer1.Interval;
             client.sendRequestGameStatus();
-            client.sendName("Testinho");
             if (gameStatus == "Game")
             {
-                Console.WriteLine("Started");
                 client.sendRequestPosition();
-                ProcuraArtigos();
+                client.sendRequestObservation();
+                ProcurarArtigos2();
             }
             else if (msgSeconds >= 5000)
             {
@@ -315,28 +313,44 @@ namespace INF1771
 
         private void ProcuraArtigos()
         {
+            //Pego a posicao atual para poder andar
             var posAtual = gameAi.GetPlayerPosition();
-            if (mapa[posAtual.x, posAtual.y].espaco.Equals(Espaco.Desconhecido))
+            //Se n for fora do mapa
+            if (gameAi.EsseTileExiste(posAtual.x, posAtual.y) && mapa[posAtual.x, posAtual.y].espaco.Equals(Espaco.Desconhecido))
             {
                 mapa[posAtual.x, posAtual.y].espaco = Espaco.Nada;
             }
+            //Pego pra onde andar
             var posicao = gameAi.NextPosition();
+            //Checo se n esta fora do mapa
             if (gameAi.EsseTileExiste(posicao.x, posicao.y))
             {
                 if ((mapa[posicao.x, posicao.y].GetTipoEspaco().Equals(Espaco.Desconhecido)))
                 {
-                    AndaParaFrenteEObservar();
+                    if (!estadoAtual.Equals(Estado.Bloqueado) && !estadoAtual.Equals(Estado.Brisa) && !estadoAtual.Equals(Estado.Hit) && !estadoAtual.Equals(Estado.Dano))
+                    {
+                        if (mapa[posicao.x, posicao.y].espaco.Equals(Espaco.Desconhecido))
+                        {
+                            AndaParaFrenteEObservar();
+                        }
+                        else
+                        {
+                            AndaParaFrente();
+                        }
+                    }
                     if (estadoAtual.Equals(Estado.Bloqueado))
                     {
+                        //mapa[posicao.x, posicao.y].espaco = Espaco.Parede;
                         mapa[posicao.x, posicao.y].espaco = Espaco.Parede;
                         var posicoes = gameAi.GetAllAdjacentPositions();
                         foreach (var posicaoProx in posicoes)
                         {
+                            //Se n for fora do mapa
                             if (gameAi.EsseTileExiste(posicaoProx.x, posicaoProx.y))
                             {
-                                if (!mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Poco) || !mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Parede))
+                                if (!mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Poco) && !mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Parede))
                                 {
-                                    MudaDirecao(posicao.x - posicaoProx.x, posicao.y - posicaoProx.y);
+                                    //MudaDirecao(posicao.x - posicaoProx.x, posicao.y - posicaoProx.y);
                                     AndaParaFrente();
                                     break;
                                 }
@@ -374,7 +388,7 @@ namespace INF1771
                     }
                     else if (estadoAtual.Equals(Estado.Brisa))
                     {
-
+                        DesviaPoco();
                     }
                 }
                 else if (mapa[posicao.x, posicao.y].GetTipoEspaco().Equals(Espaco.Poco))
@@ -395,11 +409,12 @@ namespace INF1771
                     else if (mapa[posicao.x, posicao.y].GetTipoEspaco().Equals(Espaco.Parede))
                     {
                         var posicoes = gameAi.GetAllAdjacentPositions();
+                        var posicoes2 = posicoes.Where(x => x != posicao);
                         foreach (var posicaoProx in posicoes)
                         {
                             if (gameAi.EsseTileExiste(posicaoProx.x, posicaoProx.y))
                             {
-                                if (!mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Poco) || !mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Parede))
+                                if (!mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Poco) && !mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Parede))
                                 {
                                     MudaDirecao(posicao.x - posicaoProx.x, posicao.y - posicaoProx.y);
                                     AndaParaFrente();
@@ -439,6 +454,55 @@ namespace INF1771
                 }
             }
         }
+
+
+
+        private void ProcurarArtigos2()
+        {
+            var posAtual = gameAi.GetPlayerPosition();
+            if (estadoAtual.Equals(Estado.Bloqueado))
+            {
+                mapa[posAtual.x, posAtual.y].espaco = Espaco.Nada;
+                var posPossiveis = gameAi.GetObservableAdjacentPositions();
+                foreach (var pos in posPossiveis)
+                {
+                    if (mapa[pos.x, pos.y].espaco.Equals(Espaco.Nada) || mapa[pos.x, pos.y].espaco.Equals(Espaco.PowerUp))
+                    {
+                        MudaDirecao(posAtual.x - pos.x, posAtual.y - pos.y);
+                        AndaParaFrente();
+                        if (mapa[pos.x, pos.y].espaco.Equals(Espaco.PowerUp))
+                        {
+                            client.sendGetItem();
+                        }
+                        break;
+                    }
+                }
+            }
+            else if (estadoAtual.Equals(Estado.WeakLight) || estadoAtual.Equals(Estado.GreenLight) || estadoAtual.Equals(Estado.BlueLight))
+            {
+                AndaParaFrente();
+                client.sendGetItem();
+                estadoAtual = Estado.Desconhecido;
+            }
+            else if (estadoAtual.Equals(Estado.Desconhecido))
+            {
+                //client.sendRequestObservation();
+                //AndaParaFrenteEObservar();
+                ObservarEAndarPraFrente();
+            }
+            else if (estadoAtual.Equals(Estado.Hit) || estadoAtual.Equals(Estado.Dano))
+            {
+                LutaComInimigos();
+            }
+            else if (estadoAtual.Equals(Estado.Brisa))
+            {
+                DesviaPoco();
+            }
+            else
+            {
+                Console.WriteLine("Error");
+            }
+        }
         private void LutaComInimigos()
         {
             //se eu receber q acertei continuo a atirar ate receber q n acertei mais
@@ -454,6 +518,7 @@ namespace INF1771
                 var pos = gameAi.GetPlayerPosition();
                 foreach (var posicao in posicoesPossiveis)
                 {
+                    //Nao esta fora do mapa
                     if (gameAi.EsseTileExiste(posicao.x, posicao.y))
                     {
                         if (mapa[posicao.x, posicao.y].GetTipoEspaco() != Espaco.Parede && mapa[posicao.x, posicao.y].GetTipoEspaco() != Espaco.Poco)
@@ -495,13 +560,14 @@ namespace INF1771
                 }
                 else
                 {
+                    MudaEstado(Estado.Desconhecido);
                     ProcuraArtigos();
                 }
             }
         }
         public void ContinuaAtirar()
         {
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 10; i++)
             {
                 client.sendShoot();
             }
@@ -671,6 +737,30 @@ namespace INF1771
             client.sendRequestUserStatus();
             client.sendRequestObservation();
 //            Console.WriteLine("Andou");
+        }
+        private void ObservarEAndarPraFrente()
+        {
+            client.sendRequestObservation();
+            if (!estadoAtual.Equals(Estado.Brisa) && !estadoAtual.Equals(Estado.Bloqueado))
+            {
+                var nextPos = gameAi.NextPosition();
+                gameAi.SetPlayerPosition(nextPos.x, nextPos.y);
+                client.sendForward();
+            }
+            else
+            {
+                var nextPositions = gameAi.GetObservableAdjacentPositions();
+                foreach (var pos in nextPositions)
+                {
+                    if (gameAi.EsseTileExiste(pos.x, pos.y) && !mapa[pos.x,pos.y].espaco.Equals(Espaco.Poco) && mapa[pos.x, pos.y].espaco.Equals(Espaco.Poco))
+                    {
+                        var posAtual = gameAi.GetPlayerPosition();
+                        MudaDirecao(posAtual.x - pos.x, posAtual.y - pos.y);
+                        gameAi.SetPlayerPosition(pos.x, pos.y);
+                        client.sendForward();
+                    }
+                }
+            }
         }
     }
    
