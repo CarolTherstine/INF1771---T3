@@ -199,7 +199,7 @@ namespace INF1771
                                     if (msg.Count == 0)
                                         msgSeconds = 0;
                                     msg.Add(cmdArgs.cmd[1]);
-                                    Console.WriteLine($"{cmdArgs.cmd[1]}");
+                                    Console.WriteLine($"Notification: {cmdArgs.cmd[1]}");
                                 }
 
                                 break;
@@ -287,7 +287,6 @@ namespace INF1771
             {
                 client.sendRequestPosition();
                 client.sendRequestObservation();
-                ProcurarArtigos2();
             }
             else if (msgSeconds >= 5000)
             {
@@ -309,6 +308,33 @@ namespace INF1771
                 }
                 msgSeconds = 0;
             }
+        }
+        private void ProcuraUmArtigoECampaEle()
+        {
+            //Implementar uma funcao q anda ate encontrar um artigo e fica pegando ele enquanto respawna e ganhaluta c qm vier matar ele
+            client.sendRequestPosition();
+            client.sendRequestObservation();
+            var proxPos = gameAi.NextPosition();
+            if (!estadoAtual.Equals(Estado.Bloqueado) && !estadoAtual.Equals(Estado.Brisa) && mapa[proxPos.x, proxPos.y].espaco.Equals(Espaco.Desconhecido))
+            {
+                AndaParaFrenteEObservar();
+            }
+            else if (mapa[proxPos.x, proxPos.y].espaco.Equals(Espaco.Nada))
+            {
+                AndaParaFrente();
+            }
+            else  if (estadoAtual.Equals(Estado.Bloqueado)  || estadoAtual.Equals(Estado.Brisa))
+            {
+                //desviar
+            }
+            else
+            {
+                CampaItem();
+            }
+        }
+        private void CampaItem()
+        {
+            //Lutar ou esperar o tempo
         }
 
         private void ProcuraArtigos()
@@ -457,7 +483,7 @@ namespace INF1771
 
 
 
-        private void ProcurarArtigos2()
+       /* private void ProcurarArtigos2()
         {
             var posAtual = gameAi.GetPlayerPosition();
             if (estadoAtual.Equals(Estado.Bloqueado))
@@ -503,6 +529,7 @@ namespace INF1771
                 Console.WriteLine("Error");
             }
         }
+       */
         private void LutaComInimigos()
         {
             //se eu receber q acertei continuo a atirar ate receber q n acertei mais
