@@ -1,7 +1,10 @@
 ﻿using INF1771_GameAI.Map;
 using INF1771_GameClient.dto;
 using INF1771_GameClient.Socket;
+using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Timers;
 
 namespace INF1771
@@ -10,7 +13,7 @@ namespace INF1771
     {
         #region Logicas_Pre_Implementadas
         private string name = "INF1771 Bot Example1";
-        private string host = "atari.icad.puc-rio.br";
+        private string host = "192.168.0.42";
 
         HandleClient client = new HandleClient();
         Dictionary<long, PlayerInfo> playerList = new Dictionary<long, PlayerInfo>();
@@ -248,7 +251,8 @@ namespace INF1771
                                 {
                                     List<String> o = new List<String>();
                                     o.Add("hit");
-                                    gameAi.GetObservations(o);
+                                   
+                                    this.estadoAtual = gameAi.GetObservations(o);
                                     msg.Add("you hit " + cmdArgs.cmd[1]);
                                     Console.WriteLine("You Hit");
                                 }
@@ -258,7 +262,8 @@ namespace INF1771
                                 {
                                     List<String> o = new List<String>();
                                     o.Add("damage");
-                                    gameAi.GetObservations(o);
+                                    
+                                    this.estadoAtual = gameAi.GetObservations(o);
                                     msg.Add(cmdArgs.cmd[1] + " hit you");
                                     Console.WriteLine($"{cmdArgs.cmd[1]} hit you");
                                 }
@@ -276,6 +281,7 @@ namespace INF1771
             {
                 Console.WriteLine("Connected");
                 client.sendName(name);
+                client.sendColor(Color.HotPink);
                 client.sendRequestGameStatus();
                 client.sendRequestUserStatus();
                 client.sendRequestObservation();
@@ -323,6 +329,7 @@ namespace INF1771
         }
         private void ProcuraUmArtigoParaCamperar()
         {
+            Console.WriteLine(estadoAtual.Nome);
             if (FirstTime)
             {
                 //Implementar uma funcao q anda ate encontrar um artigo e fica pegando ele enquanto respawna e ganhaluta c qm vier matar ele
@@ -332,10 +339,19 @@ namespace INF1771
                 client.sendRequestGameStatus();
                 FirstTime = false;
             }
+            if (estadoAtual.Equals(Estado.Hit) || estadoAtual.Equals(Estado.Dano) || estadoAtual.Equals(Estado.Passos))
+            {
+                for (var i =0; i<= 10; i++)
+                {
+                    client.sendShoot();
+                }
+                estadoAtual = Estado.Desconhecido;
+            }
             var proxPos = gameAi.NextPosition();
             if (gameAi.EsseTileExiste(proxPos.x, proxPos.y) && estadoAtual.Equals(Estado.Desconhecido))
             {
                 AndaParaFrenteEObservar();
+                //AndaParaFrente();
                 var posAtual = gameAi.GetPlayerPosition();
                 mapa[posAtual.x, posAtual.y].espaco = Espaco.Nada;
             }
@@ -351,7 +367,9 @@ namespace INF1771
                         if (!mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Poco) && !mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Parede))
                         {
                             MudaDirecao(posicaoAtual.x - posicaoProx.x, posicaoAtual.y - posicaoProx.y);
+                            Console.WriteLine($"a direcao atual eh {gameAi.direcao}");
                             AndaParaFrenteEObservar();
+                            //AndaParaFrente();
                             estadoAtual = Estado.Desconhecido;
                             break;
                         }
@@ -380,28 +398,22 @@ namespace INF1771
                         if (!mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Poco) && !mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Parede))
                         {
                             MudaDirecao(posicaoAtual.x - posicaoProx.x, posicaoAtual.y - posicaoProx.y);
-                            AndaParaFrenteEObservar();
+                            if (!mapa[gameAi.NextPosition().x, gameAi.NextPosition().y].espaco.Equals(Espaco.Desconhecido))
+                            {
+                                AndaParaFrenteEObservar();
+                            }
+                            else
+                            {
+                                //mudar p nao ficar em loop
+                                MudaDirecao(0, 1);
+                            }
                             estadoAtual = Estado.Desconhecido;
                             break;
                         }
                     }
                 }
             }
-            else if (estadoAtual.Equals(Estado.Dano) || estadoAtual.Equals(Estado.Hit) || estadoAtual.Equals(Estado.Passos))
-            {
-                //Tenta fugir do hit
-                var direcao = gameAi.direcao;
-                if (direcao.Equals(Direcao.Norte) || direcao.Equals(Direcao.Sul))
-                {
-                    MudaDirecao(1, 0);
-                    AndaParaFrenteEObservar();
-                }
-                else
-                {
-                    MudaDirecao(0, 1);
-                    AndaParaFrenteEObservar();
-                }
-            }
+
             else if (estadoAtual.Equals(Estado.WeakLight) || estadoAtual.Equals(Estado.GreenLight) || estadoAtual.Equals(Estado.BlueLight))
             {
                 //achou item
@@ -414,6 +426,11 @@ namespace INF1771
                 {
                     MudaDirecao(pos.x - nextPos.x, pos.y - nextPos.y);
                 }    
+            }
+            else
+            {
+                Console.WriteLine($"bugo {estadoAtual.Nome}");
+                estadoAtual = Estado.Desconhecido;
             }
         }
         private void CampaItem()
@@ -431,15 +448,16 @@ namespace INF1771
                 client.sendGetItem();
                 estadoAtual = Estado.Desconhecido;
             }
-            if (estadoAtual.Equals(Estado.Hit) || estadoAtual.Equals(Estado.Dano))
+            if (estadoAtual.Equals(Estado.Hit) || estadoAtual.Equals(Estado.Dano) || estadoAtual.Equals(Estado.Passos))
             {
                 var nextPos = gameAi.NextPosition();
                 if (!mapa[nextPos.x, nextPos.y].espaco.Equals(Espaco.Parede) && !mapa[nextPos.x, nextPos.y].espaco.Equals(Espaco.Poco))
                 {
-                    for (var i = 0; i < 5; i++)
+                    for (var i = 0; i < 10; i++)
                     {
                         client.sendShoot();
                     }
+                    estadoAtual = Estado.Desconhecido;
                 }
                 else
                 {
@@ -450,7 +468,7 @@ namespace INF1771
                         if (!mapa[pos.x, pos.y].espaco.Equals(Espaco.Parede) && !mapa[pos.x, pos.y].espaco.Equals(Espaco.Poco))
                         {
                             MudaDirecao(posAtual.x - pos.x, posAtual.y - pos.y);
-                            for (var i = 0; i < 5; i++)
+                            for (var i = 0; i < 10; i++)
                             {
                                 client.sendShoot();
                             }
@@ -556,10 +574,10 @@ namespace INF1771
         }
         private void AndaParaFrente()
         {
+            client.sendForward();
             var nextPos = gameAi.NextPosition();
             gameAi.SetPlayerPosition(nextPos.x, nextPos.y);
-            client.sendForward();
-            //            Console.WriteLine("Andou");
+                        Console.WriteLine("Andou");
         }
         private void AndaParaFrenteEObservar()
         {
