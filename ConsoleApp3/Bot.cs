@@ -8,6 +8,7 @@ namespace INF1771
 {
     public class Bot
     {
+        #region Logicas_Pre_Implementadas
         private string name = "INF1771 Bot Example1";
         private string host = "atari.icad.puc-rio.br";
 
@@ -24,11 +25,16 @@ namespace INF1771
         private System.Timers.Timer timer1 = new System.Timers.Timer();
         long time = 0;
 
+        bool FirstTime = true;
+
         String gameStatus = "";
         String sscoreList = "";
 
         List<String> msg = new List<String>();
         double msgSeconds = 0;
+        double TimeElapsed = 0;
+        int TimeClock = 0;
+        bool AchouItem = false;
         public Bot()
         {
             InicializaMapa();
@@ -52,7 +58,6 @@ namespace INF1771
                 }
             }
         }
-        #region Logicas_Pre_Implementadas
         private Color convertFromString(String c)
         {
             var p = c.Split(new char[] { ',', ']' });
@@ -99,8 +104,9 @@ namespace INF1771
                                         else
                                             o.Add(cmdArgs.cmd[1]);
 
+                                        //gameAi.GetObservations(o);
                                         this.estadoAtual = gameAi.GetObservations(o);
-                                        Console.WriteLine($"{estadoAtual.Nome} ");
+                                        Console.WriteLine($"{estadoAtual.Nome.ToString()}");
                                     }
                                 }
                                 else
@@ -220,7 +226,6 @@ namespace INF1771
                                 {
                                     if (msg.Count == 0)
                                         msgSeconds = 0;
-
                                     msg.Add(cmdArgs.cmd[1] + " has left the game!");
                                     Console.WriteLine($"{cmdArgs.cmd[1]} has left the game!");
                                 }
@@ -256,7 +261,6 @@ namespace INF1771
                                     gameAi.GetObservations(o);
                                     msg.Add(cmdArgs.cmd[1] + " hit you");
                                     Console.WriteLine($"{cmdArgs.cmd[1]} hit you");
-                                    LutaComInimigos();
                                 }
                                 break;
                         }
@@ -273,6 +277,8 @@ namespace INF1771
                 Console.WriteLine("Connected");
                 client.sendName(name);
                 client.sendRequestGameStatus();
+                client.sendRequestUserStatus();
+                client.sendRequestObservation();
             }
             else
                 Console.WriteLine("Disconnected");
@@ -285,8 +291,14 @@ namespace INF1771
             client.sendRequestGameStatus();
             if (gameStatus == "Game")
             {
-                client.sendRequestPosition();
-                client.sendRequestObservation();
+                if (!AchouItem)
+                {
+                    ProcuraUmArtigoParaCamperar();
+                }
+                else
+                {
+                    CampaItem();
+                }
             }
             else if (msgSeconds >= 5000)
             {
@@ -309,34 +321,281 @@ namespace INF1771
                 msgSeconds = 0;
             }
         }
-        private void ProcuraUmArtigoECampaEle()
+        private void ProcuraUmArtigoParaCamperar()
         {
-            //Implementar uma funcao q anda ate encontrar um artigo e fica pegando ele enquanto respawna e ganhaluta c qm vier matar ele
-            client.sendRequestPosition();
-            client.sendRequestObservation();
+            if (FirstTime)
+            {
+                //Implementar uma funcao q anda ate encontrar um artigo e fica pegando ele enquanto respawna e ganhaluta c qm vier matar ele
+                client.sendRequestPosition();
+                client.sendRequestObservation();
+                client.sendRequestUserStatus();
+                client.sendRequestGameStatus();
+                FirstTime = false;
+            }
             var proxPos = gameAi.NextPosition();
-            if (!estadoAtual.Equals(Estado.Bloqueado) && !estadoAtual.Equals(Estado.Brisa) && mapa[proxPos.x, proxPos.y].espaco.Equals(Espaco.Desconhecido))
+            if (gameAi.EsseTileExiste(proxPos.x, proxPos.y) && estadoAtual.Equals(Estado.Desconhecido))
             {
                 AndaParaFrenteEObservar();
+                var posAtual = gameAi.GetPlayerPosition();
+                mapa[posAtual.x, posAtual.y].espaco = Espaco.Nada;
             }
-            else if (mapa[proxPos.x, proxPos.y].espaco.Equals(Espaco.Nada))
+            else if (!gameAi.EsseTileExiste(proxPos.x, proxPos.y) && estadoAtual.Equals(Estado.Desconhecido))
+            {
+                var posicoes = gameAi.GetObservableAdjacentPositions();
+                foreach (var posicaoProx in posicoes)
+                {
+                    //Se n for fora do mapa
+                    var posicaoAtual = gameAi.GetPlayerPosition();
+                    if (gameAi.EsseTileExiste(posicaoProx.x, posicaoProx.y))
+                    {
+                        if (!mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Poco) && !mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Parede))
+                        {
+                            MudaDirecao(posicaoAtual.x - posicaoProx.x, posicaoAtual.y - posicaoProx.y);
+                            AndaParaFrenteEObservar();
+                            estadoAtual = Estado.Desconhecido;
+                            break;
+                        }
+                    }
+                }
+            }
+            else if (gameAi.EsseTileExiste(proxPos.x, proxPos.y) && mapa[proxPos.x, proxPos.y].espaco.Equals(Espaco.Nada))
             {
                 AndaParaFrente();
             }
-            else  if (estadoAtual.Equals(Estado.Bloqueado)  || estadoAtual.Equals(Estado.Brisa))
+            else if (estadoAtual.Equals(Estado.Bloqueado) || estadoAtual.Equals(Estado.Brisa))
             {
+                var posicao = gameAi.NextPosition();
+                var posicaoAtual = gameAi.GetPlayerPosition();
                 //desviar
+                if (gameAi.EsseTileExiste(posicao.x, posicao.y))
+                {
+                    mapa[posicao.x, posicao.y].espaco = Espaco.Parede;
+                }
+                var posicoes = gameAi.GetObservableAdjacentPositions();
+                foreach (var posicaoProx in posicoes)
+                {
+                    //Se n for fora do mapa
+                    if (gameAi.EsseTileExiste(posicaoProx.x, posicaoProx.y))
+                    {
+                        if (!mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Poco) && !mapa[posicaoProx.x, posicaoProx.y].espaco.Equals(Espaco.Parede))
+                        {
+                            MudaDirecao(posicaoAtual.x - posicaoProx.x, posicaoAtual.y - posicaoProx.y);
+                            AndaParaFrenteEObservar();
+                            estadoAtual = Estado.Desconhecido;
+                            break;
+                        }
+                    }
+                }
             }
-            else
+            else if (estadoAtual.Equals(Estado.Dano) || estadoAtual.Equals(Estado.Hit) || estadoAtual.Equals(Estado.Passos))
             {
-                CampaItem();
+                //Tenta fugir do hit
+                var direcao = gameAi.direcao;
+                if (direcao.Equals(Direcao.Norte) || direcao.Equals(Direcao.Sul))
+                {
+                    MudaDirecao(1, 0);
+                    AndaParaFrenteEObservar();
+                }
+                else
+                {
+                    MudaDirecao(0, 1);
+                    AndaParaFrenteEObservar();
+                }
+            }
+            else if (estadoAtual.Equals(Estado.WeakLight) || estadoAtual.Equals(Estado.GreenLight) || estadoAtual.Equals(Estado.BlueLight))
+            {
+                //achou item
+                TimeClock = 0;
+                AchouItem = true;
+                var nextPos = gameAi.NextPosition();
+                var pos = gameAi.GetPlayerPosition();
+                //Evita ficar virado p parede
+                if (!gameAi.EsseTileExiste(nextPos.x, nextPos.y) || (gameAi.EsseTileExiste(nextPos.x, nextPos.y) && (mapa[nextPos.x, nextPos.y].espaco.Equals(Espaco.Poco) || mapa[nextPos.x, nextPos.y].espaco.Equals(Espaco.Parede))))
+                {
+                    MudaDirecao(pos.x - nextPos.x, pos.y - nextPos.y);
+                }    
             }
         }
         private void CampaItem()
         {
+            TimeClock += 1;
+            if (TimeClock >= 10)
+            {
+                client.sendRequestObservation();
+                client.sendRequestScoreboard();
+                TimeClock = 0;
+            }
             //Lutar ou esperar o tempo
+            if (estadoAtual.Equals(Estado.WeakLight) || estadoAtual.Equals(Estado.GreenLight) || estadoAtual.Equals(Estado.BlueLight))
+            {
+                client.sendGetItem();
+                estadoAtual = Estado.Desconhecido;
+            }
+            if (estadoAtual.Equals(Estado.Hit) || estadoAtual.Equals(Estado.Dano))
+            {
+                var nextPos = gameAi.NextPosition();
+                if (!mapa[nextPos.x, nextPos.y].espaco.Equals(Espaco.Parede) && !mapa[nextPos.x, nextPos.y].espaco.Equals(Espaco.Poco))
+                {
+                    for (var i = 0; i < 5; i++)
+                    {
+                        client.sendShoot();
+                    }
+                }
+                else
+                {
+                    var posicoesPossiveis = gameAi.GetObservableAdjacentPositions();
+                    var posAtual = gameAi.GetPlayerPosition();
+                    foreach (var pos in posicoesPossiveis)
+                    {
+                        if (!mapa[pos.x, pos.y].espaco.Equals(Espaco.Parede) && !mapa[pos.x, pos.y].espaco.Equals(Espaco.Poco))
+                        {
+                            MudaDirecao(posAtual.x - pos.x, posAtual.y - pos.y);
+                            for (var i = 0; i < 5; i++)
+                            {
+                                client.sendShoot();
+                            }
+                        }
+                    }
+                }
+                client.sendRequestObservation();
+            }
         }
-
+        #region Metodos_De_Apoio
+        public void MudaDirecao(int x, int y)
+        {
+            //se tou andando pro norte ou sul e quero mudar minha direcao em x+ viro p direita
+            //se tou andando pro norte ou sul e quero mudar minha direcao em x- viro p esquerda
+            //se tou andando pro norte ou sul e quero mudar minha direcao em y- viro 2x p direita
+            if (gameAi.direcao.Equals(Direcao.Norte) || gameAi.direcao.Equals(Direcao.Sul))
+            {
+                if (x < 0)
+                {
+                    client.sendTurnLeft();
+                    if (gameAi.direcao.Equals(Direcao.Norte))
+                    {
+                        gameAi.AtualizaDirecao(Direcao.Oeste);
+                    }
+                    else
+                    {
+                        gameAi.AtualizaDirecao(Direcao.Leste);
+                    }
+                }
+                else if (x > 0)
+                {
+                    client.sendTurnRight();
+                    if (gameAi.direcao.Equals(Direcao.Norte))
+                    {
+                        gameAi.AtualizaDirecao(Direcao.Leste);
+                    }
+                    else
+                    {
+                        gameAi.AtualizaDirecao(Direcao.Oeste);
+                    }
+                }
+                else
+                {
+                    client.sendTurnRight();
+                    client.sendTurnRight();
+                    if (gameAi.direcao.Equals(Direcao.Norte))
+                    {
+                        gameAi.AtualizaDirecao(Direcao.Sul);
+                    }
+                    else
+                    {
+                        gameAi.AtualizaDirecao(Direcao.Norte);
+                    }
+                }
+            }
+            //se tou andando pro leste ou oeste e quero mudar minha direcao em x- viro 2x p direita
+            //se tou andando pro leste ou oeste e quero mudar minha direcao em y+ viro p direita
+            //se tou andando pro leste ou oeste e quero mudar minha direcao em y- viro p esquerda
+            else if (gameAi.direcao.Equals(Direcao.Leste) || gameAi.direcao.Equals(Direcao.Oeste))
+            {
+                if (y < 0)
+                {
+                    client.sendTurnLeft();
+                    if (gameAi.direcao.Equals(Direcao.Leste))
+                    {
+                        gameAi.AtualizaDirecao(Direcao.Norte);
+                    }
+                    else
+                    {
+                        gameAi.AtualizaDirecao(Direcao.Sul);
+                    }
+                }
+                else if (y > 0)
+                {
+                    client.sendTurnRight();
+                    if (gameAi.direcao.Equals(Direcao.Leste))
+                    {
+                        gameAi.AtualizaDirecao(Direcao.Sul);
+                    }
+                    else
+                    {
+                        gameAi.AtualizaDirecao(Direcao.Norte);
+                    }
+                }
+                else
+                {
+                    client.sendTurnRight();
+                    client.sendTurnRight();
+                    if (gameAi.direcao.Equals(Direcao.Leste))
+                    {
+                        gameAi.AtualizaDirecao(Direcao.Oeste);
+                    }
+                    else
+                    {
+                        gameAi.AtualizaDirecao(Direcao.Leste);
+                    }
+                }
+            }
+        }
+        private void MudaEstado(Estado estado)
+        {
+            this.estadoAtual = estado;
+        }
+        private void AndaParaFrente()
+        {
+            var nextPos = gameAi.NextPosition();
+            gameAi.SetPlayerPosition(nextPos.x, nextPos.y);
+            client.sendForward();
+            //            Console.WriteLine("Andou");
+        }
+        private void AndaParaFrenteEObservar()
+        {
+            var nextPos = gameAi.NextPosition();
+            gameAi.SetPlayerPosition(nextPos.x, nextPos.y);
+            client.sendForward();
+            client.sendRequestUserStatus();
+            client.sendRequestObservation();
+            //            Console.WriteLine("Andou");
+        }
+        private void ObservarEAndarPraFrente()
+        {
+            client.sendRequestObservation();
+            if (!estadoAtual.Equals(Estado.Brisa) && !estadoAtual.Equals(Estado.Bloqueado))
+            {
+                var nextPos = gameAi.NextPosition();
+                gameAi.SetPlayerPosition(nextPos.x, nextPos.y);
+                client.sendForward();
+            }
+            else
+            {
+                var nextPositions = gameAi.GetObservableAdjacentPositions();
+                foreach (var pos in nextPositions)
+                {
+                    if (gameAi.EsseTileExiste(pos.x, pos.y) && !mapa[pos.x, pos.y].espaco.Equals(Espaco.Poco) && mapa[pos.x, pos.y].espaco.Equals(Espaco.Poco))
+                    {
+                        var posAtual = gameAi.GetPlayerPosition();
+                        MudaDirecao(posAtual.x - pos.x, posAtual.y - pos.y);
+                        gameAi.SetPlayerPosition(pos.x, pos.y);
+                        client.sendForward();
+                    }
+                }
+            }
+        }
+        #endregion Metodos_De_Apoio
+        #region Implementacoes_Antigas_Descartadas
         private void ProcuraArtigos()
         {
             //Pego a posicao atual para poder andar
@@ -480,56 +739,53 @@ namespace INF1771
                 }
             }
         }
-
-
-
-       /* private void ProcurarArtigos2()
-        {
-            var posAtual = gameAi.GetPlayerPosition();
-            if (estadoAtual.Equals(Estado.Bloqueado))
-            {
-                mapa[posAtual.x, posAtual.y].espaco = Espaco.Nada;
-                var posPossiveis = gameAi.GetObservableAdjacentPositions();
-                foreach (var pos in posPossiveis)
-                {
-                    if (mapa[pos.x, pos.y].espaco.Equals(Espaco.Nada) || mapa[pos.x, pos.y].espaco.Equals(Espaco.PowerUp))
-                    {
-                        MudaDirecao(posAtual.x - pos.x, posAtual.y - pos.y);
-                        AndaParaFrente();
-                        if (mapa[pos.x, pos.y].espaco.Equals(Espaco.PowerUp))
-                        {
-                            client.sendGetItem();
-                        }
-                        break;
-                    }
-                }
-            }
-            else if (estadoAtual.Equals(Estado.WeakLight) || estadoAtual.Equals(Estado.GreenLight) || estadoAtual.Equals(Estado.BlueLight))
-            {
-                AndaParaFrente();
-                client.sendGetItem();
-                estadoAtual = Estado.Desconhecido;
-            }
-            else if (estadoAtual.Equals(Estado.Desconhecido))
-            {
-                //client.sendRequestObservation();
-                //AndaParaFrenteEObservar();
-                ObservarEAndarPraFrente();
-            }
-            else if (estadoAtual.Equals(Estado.Hit) || estadoAtual.Equals(Estado.Dano))
-            {
-                LutaComInimigos();
-            }
-            else if (estadoAtual.Equals(Estado.Brisa))
-            {
-                DesviaPoco();
-            }
-            else
-            {
-                Console.WriteLine("Error");
-            }
-        }
-       */
+        /* private void ProcurarArtigos2()
+         {
+             var posAtual = gameAi.GetPlayerPosition();
+             if (estadoAtual.Equals(Estado.Bloqueado))
+             {
+                 mapa[posAtual.x, posAtual.y].espaco = Espaco.Nada;
+                 var posPossiveis = gameAi.GetObservableAdjacentPositions();
+                 foreach (var pos in posPossiveis)
+                 {
+                     if (mapa[pos.x, pos.y].espaco.Equals(Espaco.Nada) || mapa[pos.x, pos.y].espaco.Equals(Espaco.PowerUp))
+                     {
+                         MudaDirecao(posAtual.x - pos.x, posAtual.y - pos.y);
+                         AndaParaFrente();
+                         if (mapa[pos.x, pos.y].espaco.Equals(Espaco.PowerUp))
+                         {
+                             client.sendGetItem();
+                         }
+                         break;
+                     }
+                 }
+             }
+             else if (estadoAtual.Equals(Estado.WeakLight) || estadoAtual.Equals(Estado.GreenLight) || estadoAtual.Equals(Estado.BlueLight))
+             {
+                 AndaParaFrente();
+                 client.sendGetItem();
+                 estadoAtual = Estado.Desconhecido;
+             }
+             else if (estadoAtual.Equals(Estado.Desconhecido))
+             {
+                 //client.sendRequestObservation();
+                 //AndaParaFrenteEObservar();
+                 ObservarEAndarPraFrente();
+             }
+             else if (estadoAtual.Equals(Estado.Hit) || estadoAtual.Equals(Estado.Dano))
+             {
+                 LutaComInimigos();
+             }
+             else if (estadoAtual.Equals(Estado.Brisa))
+             {
+                 DesviaPoco();
+             }
+             else
+             {
+                 Console.WriteLine("Error");
+             }
+         }
+        */
         private void LutaComInimigos()
         {
             //se eu receber q acertei continuo a atirar ate receber q n acertei mais
@@ -605,95 +861,6 @@ namespace INF1771
             }
             ProcuraArtigos();
         }
-        public void MudaDirecao(int x, int y)
-        {
-            //se tou andando pro norte ou sul e quero mudar minha direcao em x+ viro p direita
-            //se tou andando pro norte ou sul e quero mudar minha direcao em x- viro p esquerda
-            //se tou andando pro norte ou sul e quero mudar minha direcao em y- viro 2x p direita
-            if (gameAi.direcao.Equals(Direcao.Norte) || gameAi.direcao.Equals(Direcao.Sul))
-            {
-                if (x < 0)
-                {
-                    client.sendTurnLeft();
-                    if (gameAi.direcao.Equals(Direcao.Norte))
-                    {
-                        gameAi.AtualizaDirecao(Direcao.Oeste);
-                    }
-                    else
-                    {
-                        gameAi.AtualizaDirecao(Direcao.Leste);
-                    }
-                }
-                else if (x > 0)
-                {
-                    client.sendTurnRight();
-                    if (gameAi.direcao.Equals(Direcao.Norte))
-                    {
-                        gameAi.AtualizaDirecao(Direcao.Leste);
-                    }
-                    else
-                    {
-                        gameAi.AtualizaDirecao(Direcao.Oeste);
-                    }
-                }
-                else
-                {
-                    client.sendTurnRight();
-                    client.sendTurnRight();
-                    if (gameAi.direcao.Equals(Direcao.Norte))
-                    {
-                        gameAi.AtualizaDirecao(Direcao.Sul);
-                    }
-                    else
-                    {
-                        gameAi.AtualizaDirecao(Direcao.Norte);
-                    }
-                }
-            }
-            //se tou andando pro leste ou oeste e quero mudar minha direcao em x- viro 2x p direita
-            //se tou andando pro leste ou oeste e quero mudar minha direcao em y+ viro p direita
-            //se tou andando pro leste ou oeste e quero mudar minha direcao em y- viro p esquerda
-            else if (gameAi.direcao.Equals(Direcao.Leste) || gameAi.direcao.Equals(Direcao.Oeste))
-            {
-                if (y < 0)
-                {
-                    client.sendTurnLeft();
-                    if (gameAi.direcao.Equals(Direcao.Leste))
-                    {
-                        gameAi.AtualizaDirecao(Direcao.Norte);
-                    }
-                    else
-                    {
-                        gameAi.AtualizaDirecao(Direcao.Sul);
-                    }
-                }
-                else if (y > 0)
-                {
-                    client.sendTurnRight();
-                    if (gameAi.direcao.Equals(Direcao.Leste))
-                    {
-                        gameAi.AtualizaDirecao(Direcao.Sul);
-                    }
-                    else
-                    {
-                        gameAi.AtualizaDirecao(Direcao.Norte);
-                    }
-                }
-                else
-                {
-                    client.sendTurnRight();
-                    client.sendTurnRight();
-                    if (gameAi.direcao.Equals(Direcao.Leste))
-                    {
-                        gameAi.AtualizaDirecao(Direcao.Oeste);
-                    }
-                    else
-                    {
-                        gameAi.AtualizaDirecao(Direcao.Leste);
-                    }
-                }
-            }
-        }
         private void DesviaPoco()
         {
             var posAtual = gameAi.GetPlayerPosition();
@@ -745,50 +912,6 @@ namespace INF1771
             }
             ProcuraArtigos();
         }
-        private void MudaEstado(Estado estado)
-        {
-            this.estadoAtual = estado;
-        }
-        private void AndaParaFrente()
-        {
-            var nextPos = gameAi.NextPosition();
-            gameAi.SetPlayerPosition(nextPos.x,nextPos.y);
-            client.sendForward();
-//            Console.WriteLine("Andou");
-        }
-        private void AndaParaFrenteEObservar()
-        {
-            var nextPos = gameAi.NextPosition();
-            gameAi.SetPlayerPosition(nextPos.x,nextPos.y);
-            client.sendForward();
-            client.sendRequestUserStatus();
-            client.sendRequestObservation();
-//            Console.WriteLine("Andou");
-        }
-        private void ObservarEAndarPraFrente()
-        {
-            client.sendRequestObservation();
-            if (!estadoAtual.Equals(Estado.Brisa) && !estadoAtual.Equals(Estado.Bloqueado))
-            {
-                var nextPos = gameAi.NextPosition();
-                gameAi.SetPlayerPosition(nextPos.x, nextPos.y);
-                client.sendForward();
-            }
-            else
-            {
-                var nextPositions = gameAi.GetObservableAdjacentPositions();
-                foreach (var pos in nextPositions)
-                {
-                    if (gameAi.EsseTileExiste(pos.x, pos.y) && !mapa[pos.x,pos.y].espaco.Equals(Espaco.Poco) && mapa[pos.x, pos.y].espaco.Equals(Espaco.Poco))
-                    {
-                        var posAtual = gameAi.GetPlayerPosition();
-                        MudaDirecao(posAtual.x - pos.x, posAtual.y - pos.y);
-                        gameAi.SetPlayerPosition(pos.x, pos.y);
-                        client.sendForward();
-                    }
-                }
-            }
-        }
+        #endregion Implementacoes_Antigas_Descartadas
     }
-   
 }
